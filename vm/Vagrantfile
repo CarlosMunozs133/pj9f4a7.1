@@ -1,0 +1,50 @@
+# -*- mode: ruby -*-
+BOX_IMAGE = "debian/bookworm64"
+PROVIDER = "virtualbox"
+NOM_MAQUINA_VIRTUAL = "pj9f4a7.1_xxyyzz"
+NUM_CPUS = 2
+MEMORIA_RAM = 2048
+HOSTNAME = "pj9f4a7.1-xxyyzz.fjeclot.net"
+CARPETA_MAQ_FIS = "../codis"
+CARPETA_MAQ_VIR = "/home/vagrant/codis"
+PORT_VIR1 = 80
+PORT_FIS1 = 8000
+PORT_VIR2 = 443
+PORT_FIS2 = 8443
+PROT = "tcp"
+
+Vagrant.configure("2") do |config|
+  config.vm.box = BOX_IMAGE
+
+  config.vm.provider PROVIDER do |provider|
+    provider.name = NOM_MAQUINA_VIRTUAL
+    provider.memory = MEMORIA_RAM
+    provider.cpus = NUM_CPUS
+    provider.customize ['modifyvm', :id, '--clipboard', 'bidirectional']
+  end
+
+  config.vm.hostname = HOSTNAME
+  config.vm.synced_folder CARPETA_MAQ_FIS, CARPETA_MAQ_VIR
+  config.vm.network "forwarded_port", guest: PORT_VIR1, host: PORT_FIS1, protocol: PROT
+  config.vm.network "forwarded_port", guest: PORT_VIR2, host: PORT_FIS2, protocol: PROT
+
+  config.vm.provision "shell", inline: <<-SHELL
+    set -e
+    apt-get update -y
+    DEBIAN_FRONTEND=noninteractive apt-get install -y aptitude net-tools whois curl gnupg lsb-release ca-certificates
+
+    # instalar Docker
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmour -o /etc/apt/keyrings/docker.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list
+    apt-get update -y
+    DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    usermod -aG docker vagrant
+    systemctl enable docker
+    systemctl start docker
+
+    # -- Activitat 6.3: instal·lar nginx i composer (aprovisionament extra)
+    DEBIAN_FRONTEND=noninteractive apt-get install -y nginx
+    curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+  SHELL
+end
